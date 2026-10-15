@@ -1,0 +1,136 @@
+// Schéma de référence (documentation). La BDD réellement utilisée par PHP = database.sql
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "mysql"  url = env("DATABASE_URL") }
+
+enum TypeExploitation { agriculture elevage mixte }
+enum Severity { faible moyenne critique }
+enum Role { user assistant }
+enum UserRole { user admin }
+enum CameraType { mjpeg snapshot video device }
+
+model User {
+  id               Int              @id @default(autoincrement())
+  nom              String           @db.VarChar(80)
+  email            String           @unique @db.VarChar(190)
+  passwordHash     String           @map("password_hash")
+  typeExploitation TypeExploitation @default(agriculture) @map("type_exploitation")
+  role             UserRole         @default(user)
+  isActive         Boolean          @default(true) @map("is_active")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  zones            Zone[]
+  cameras          Camera[]
+  forumMessages    ForumMessage[]
+  settings         Settings?
+  devices          Device[]
+  readings         SensorReading[]
+  alerts           Alert[]
+  reviews          Review[]
+  messages         ChatMessage[]
+  @@map("users")
+}
+model Settings {
+  userId           Int     @id @map("user_id")
+  alertTempMax     Decimal @default(32.0) @map("alert_temp_max") @db.Decimal(4,1)
+  alertHumidityMin Int     @default(40) @map("alert_humidity_min")
+  alertMotion      Boolean @default(true) @map("alert_motion")
+  theme            String  @default("light")
+  autoIrrigation   Boolean @default(false) @map("auto_irrigation")
+  ventilation      Int     @default(50)
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("settings")
+}
+model Device {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  zoneId     Int?      @map("zone_id")
+  kind       String    @default("mixte")
+  name       String    @default("Capteur principal")
+  apiKeyHash String    @unique @map("api_key_hash") @db.Char(64)
+  lastSeen   DateTime? @map("last_seen")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("devices")
+}
+model SensorReading {
+  id           BigInt   @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  deviceId     Int?     @map("device_id")
+  temperature  Decimal  @db.Decimal(4,1)
+  soilHumidity Decimal  @map("soil_humidity") @db.Decimal(4,1)
+  airQuality   Int      @map("air_quality")
+  cameraOnline Boolean  @default(true) @map("camera_online")
+  motion       Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("sensor_readings")
+}
+model Alert {
+  id        BigInt   @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  type      String   @db.VarChar(20)
+  message   String
+  severity  Severity @default(faible)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("alerts")
+}
+model Review {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  rating    Int
+  comment   String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("reviews")
+}
+model ChatMessage {
+  id        BigInt   @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  role      Role
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+model Zone {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  name      String   @db.VarChar(60)
+  culture   String   @default("") @db.VarChar(60)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("zones")
+}
+model Camera {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @map("user_id")
+  zoneId    Int?       @map("zone_id")
+  name      String     @db.VarChar(60)
+  type      CameraType @default(mjpeg)
+  url       String?    @db.VarChar(500)
+  createdAt DateTime   @default(now()) @map("created_at")
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("cameras")
+}
+model ForumRoom {
+  id          Int            @id @default(autoincrement())
+  name        String         @db.VarChar(60)
+  icon        String         @default("bi-chat-dots-fill")
+  description String         @default("")
+  messages    ForumMessage[]
+  @@map("forum_rooms")
+}
+model ForumMessage {
+  id        BigInt    @id @default(autoincrement())
+  roomId    Int       @map("room_id")
+  userId    Int       @map("user_id")
+  content   String    @db.VarChar(1000)
+  createdAt DateTime  @default(now()) @map("created_at")
+  room      ForumRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([roomId, id])
+  @@map("forum_messages")
+}
